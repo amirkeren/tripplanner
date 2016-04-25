@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+       http://www.springframework.org/schema/context
+       http://www.springframework.org/schema/context/spring-context-3.0.xsd">
+
+    <context:annotation-config/>
+
+    <context:property-placeholder location="config.stage.properties"/>
+
+    <bean class="com.mongodb.MongoClientURI" id="mongoURI">
+        <constructor-arg value="${mongo.url}"  />
+    </bean>
+
+    <bean class="java.net.URI" id="dbUrl">
+        <constructor-arg value="${postgres.url}"  />
+    </bean>
+
+    <bean id="yelpAPI" class="com.trip.planner.sources.yelp.YelpLocationAPI"
+          scope="singleton">
+        <constructor-arg type="java.lang.String" value="${yelp.consumer.key}"/>
+        <constructor-arg type="java.lang.String" value="${yelp.consumer.secret}"/>
+        <constructor-arg type="java.lang.String" value="${yelp.token}"/>
+        <constructor-arg type="java.lang.String" value="${yelp.token.secret}"/>
+    </bean>
+
+    <bean id="tripAdvisorAPI" class="com.trip.planner.sources.tripadvisor.TripAdvisorLocationAPI"
+          scope="singleton">
+        <constructor-arg type="java.lang.String" value="${trip.advisor.key}"/>
+        <property name="coordinatesToLocationIdCache" ref="cache"/>
+        <property name="coordinatesToLocationIdBlacklistCache" ref="cache"/>
+    </bean>
+
+    <bean id="wundergroundAPI" class="com.trip.planner.sources.weather.wunderground.WundergroundAPI"
+          scope="singleton">
+        <constructor-arg type="java.lang.String" value="${wunderground.key}"/>
+    </bean>
+
+    <bean id="googleMapsAPI" class="com.trip.planner.sources.google.maps.GoogleMapsAPI"
+          scope="singleton">
+        <constructor-arg type="java.lang.String" value="${google.api}"/>
+    </bean>
+
+    <bean id="googlPlacesAPI" class="com.trip.planner.sources.google.places.GooglePlacesLocationAPI"
+          scope="singleton">
+        <constructor-arg type="java.lang.String" value="${google.api}"/>
+    </bean>
+
+    <bean id="fourSquareWrapperAPI" class="com.trip.planner.sources.foursquare.FourSquareWrapperAPI"
+          scope="singleton">
+        <constructor-arg type="java.lang.String" value="${foursquare.client.id}"/>
+        <constructor-arg type="java.lang.String" value="${foursquare.client.secret}"/>
+    </bean>
+
+    <bean id="api" class="com.trip.planner.collector.API"
+          scope="singleton">
+    </bean>
+
+    <bean id="rest" class="com.trip.planner.REST"
+          scope="singleton">
+        <property name="dbCache" ref="dbcache"/>
+    </bean>
+
+    <bean id="tripPlanner" class="com.trip.planner.TripPlanner"
+          scope="singleton">
+        <property name="collector" ref="api"/>
+    </bean>
+
+    <bean id="weatherAPI" class="com.trip.planner.sources.weather.WeatherAPI"
+          scope="singleton">
+    </bean>
+
+    <bean id="dbcache" class="com.trip.planner.tools.cache.DBCache"
+          scope="prototype">
+    </bean>
+
+    <bean id="cache" class="com.trip.planner.tools.cache.SimpleCache"
+          scope="prototype">
+        <constructor-arg type="int" value="1000"/>
+    </bean>
+
+    <bean id="utils" class="com.trip.planner.utils.Utils"
+          scope="singleton">
+        <property name="locationToGeoLocationInfoCache" ref="cache"/>
+        <property name="locationToCoordinatesCache" ref="cache"/>
+    </bean>
+
+    <bean id="mongoTemplate" class="org.springframework.data.mongodb.core.MongoTemplate">
+        <constructor-arg name="mongo" ref="mongo"/>
+        <constructor-arg name="databaseName" value="local"/>
+        <constructor-arg name="userCredentials" ref="mongoCredentials"/>
+    </bean>
+
+    <bean id="mongoCredentials" class="org.springframework.data.authentication.UserCredentials">
+        <constructor-arg name="username" value="#{mongoURI.username}" />
+        <constructor-arg name="password" value="#{new java.lang.String(mongoURI.password)}" />
+    </bean>
+
+    <bean class="com.mongodb.Mongo" id="mongo">
+        <constructor-arg ref="mongoURI" />
+    </bean>
+
+    <bean id="dataSource" class="org.apache.commons.dbcp.BasicDataSource"
+          destroy-method="close">
+        <property name="driverClassName" value="org.postgresql.Driver"/>
+        <property name="url" value="#{ 'jdbc:postgresql://' + @dbUrl.getHost() + ':' + @dbUrl.getPort() + @dbUrl.getPath() }?ssl=true&amp;sslfactory=org.postgresql.ssl.NonValidatingFactory"/>
+        <property name="username" value="#{ @dbUrl.getUserInfo().split(':')[0] }"/>
+        <property name="password" value="#{ @dbUrl.getUserInfo().split(':')[1] }"/>
+    </bean>
+
+    <bean id="hibernate4AnnotatedSessionFactory"
+          class="org.springframework.orm.hibernate4.LocalSessionFactoryBean">
+        <property name="dataSource" ref="dataSource" />
+        <property name="annotatedClasses">
+            <list>
+                <value>com.trip.planner.tools.database.dto.GenericLocation</value>
+            </list>
+        </property>
+        <property name="hibernateProperties">
+            <props>
+                <prop key="hibernate.dialect">org.hibernate.dialect.PostgreSQL9Dialect</prop>
+                <prop key="hibernate.current_session_context_class">thread</prop>
+                <prop key="hibernate.show_sql">false</prop>
+                <prop key="hibernate.hbm2ddl.auto">update</prop>
+            </props>
+        </property>
+    </bean>
+
+    <bean id="genericLocationDAO" class="com.trip.planner.tools.database.dao.GenericLocationDAO">
+        <property name="sessionFactory" ref="hibernate4AnnotatedSessionFactory" />
+    </bean>
+
+</beans>
